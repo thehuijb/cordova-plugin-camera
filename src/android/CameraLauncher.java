@@ -79,11 +79,24 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private static final String GET_PICTURE = "Get Picture";
     private static final String GET_VIDEO = "Get Video";
     private static final String GET_All = "Get All";
-    
+
     private static final String LOG_TAG = "CameraLauncher";
 
     //Where did this come from?
     private static final int CROP_CAMERA = 100;
+
+    //error messages
+    private static final String E001 = "E001: Unable to create bitmap!";
+    private static final String E002 = "E002: Error capturing image - no media storage found.";
+    private static final String E003 = "E003: null data from photo library";
+    private static final String E004 = "E004: Unable to retrieve path to picture!";
+    private static final String E005 = "E005: Error retrieving image.";
+    private static final String E006 = "E006: Error capturing image.";
+    private static final String E007 = "E007: Camera cancelled.";
+    private static final String E008 = "E008: Did not complete!";
+    private static final String E009 = "E009: Selection cancelled.";
+    private static final String E010 = "E010: Selection did not complete!";
+    private static final String E011 = "E011: Error compressing image.";
 
     private int mQuality;                   // Compression quality hint (0-100: 0=low quality & high compression, 100=compress of max quality)
     private int targetWidth;                // desired width of the image
@@ -162,7 +175,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 callbackContext.sendPluginResult(r);
                 return true;
             }
-             
+
             PluginResult r = new PluginResult(PluginResult.Status.NO_RESULT);
             r.setKeepCallback(true);
             callbackContext.sendPluginResult(r);
@@ -271,7 +284,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * @param quality           Compression quality hint (0-100: 0=low quality & high compression, 100=compress of max quality)
      * @param srcType           The album to get image from.
      * @param returnType        Set the type of image to return.
-     * @param encodingType 
+     * @param encodingType
      */
     // TODO: Images selected from SDCARD don't display correctly, but from CAMERA ALBUM do!
     // TODO: Images from kitkat filechooser not going into crop function
@@ -322,7 +335,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
   /**
    * Brings up the UI to perform crop on passed image URI
-   * 
+   *
    * @param picUri
    */
   private void performCrop(Uri picUri, int destType, Intent cameraIntent) {
@@ -414,11 +427,11 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 // Try to get the bitmap from intent.
                 bitmap = (Bitmap)intent.getExtras().get("data");
             }
-            
+
             // Double-check the bitmap.
             if (bitmap == null) {
                 Log.d(LOG_TAG, "I either have a null image path or bitmap");
-                this.failPicture("Unable to create bitmap!");
+                this.failPicture(E001);
                 return;
             }
 
@@ -442,12 +455,12 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             }
 
             if (uri == null) {
-                this.failPicture("Error capturing image - no media storage found.");
+                this.failPicture(E002);
                 return;
             }
 
             // If all this is true we shouldn't compress the image.
-            if (this.targetHeight == -1 && this.targetWidth == -1 && this.mQuality == 100 && 
+            if (this.targetHeight == -1 && this.targetWidth == -1 && this.mQuality == 100 &&
                     !this.correctOrientation) {
                 writeUncompressedImage(uri);
 
@@ -547,7 +560,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             if (croppedUri != null) {
                 uri = croppedUri;
             } else {
-                this.failPicture("null data from photo library");
+                this.failPicture(E003);
                 return;
             }
         }
@@ -571,7 +584,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 // If we don't have a valid image so quit.
                 if (!("image/jpeg".equalsIgnoreCase(mimeType) || "image/png".equalsIgnoreCase(mimeType))) {
                     Log.d(LOG_TAG, "I either have a null image path or bitmap");
-                    this.failPicture("Unable to retrieve path to picture!");
+                    this.failPicture(E004);
                     return;
                 }
                 Bitmap bitmap = null;
@@ -582,7 +595,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 }
                 if (bitmap == null) {
                     Log.d(LOG_TAG, "I either have a null image path or bitmap");
-                    this.failPicture("Unable to create bitmap!");
+                    this.failPicture(E001);
                     return;
                 }
 
@@ -617,7 +630,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                             this.callbackContext.success("file://" + modifiedPath + "?" + System.currentTimeMillis());
                         } catch (Exception e) {
                             e.printStackTrace();
-                            this.failPicture("Error retrieving image.");
+                            this.failPicture(E005);
                         }
                     }
                     else {
@@ -632,7 +645,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             }
         }
     }
-    
+
     /**
      * Called when the camera view exits.
      *
@@ -666,15 +679,14 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                         Log.e(LOG_TAG, "Unable to write to file");
                     }
 
-                }// If cancelled
-                else if (resultCode == Activity.RESULT_CANCELED) {
-                    this.failPicture("Camera cancelled.");
-                }
+            }// If cancelled
+            else if (resultCode == Activity.RESULT_CANCELED) {
+                this.failPicture(E007);
+            }
 
-                // If something else
-                else {
-                    this.failPicture("Did not complete!");
-                }
+            // If something else
+            else {
+                this.failPicture(E008);
             }
             // If CAMERA
             else if (srcType == CAMERA) {
@@ -689,33 +701,31 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                         else {
                             this.processResultFromCamera(destType, intent);
                         }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        this.failPicture("Error capturing image.");
-                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    this.failPicture(E006);
                 }
 
-                // If cancelled
-                else if (resultCode == Activity.RESULT_CANCELED) {
-                    this.failPicture("Camera cancelled.");
-                }
-
-                // If something else
-                else {
-                    this.failPicture("Did not complete!");
-                }
+            // If cancelled
+            else if (resultCode == Activity.RESULT_CANCELED) {
+                this.failPicture(E007);
             }
-            // If retrieving photo from library
-            else if ((srcType == PHOTOLIBRARY) || (srcType == SAVEDPHOTOALBUM)) {
-                if (resultCode == Activity.RESULT_OK && intent != null) {
-                    this.processResultFromGallery(destType, intent);
-                }
-                else if (resultCode == Activity.RESULT_CANCELED) {
-                    this.failPicture("Selection cancelled.");
-                }
-                else {
-                    this.failPicture("Selection did not complete!");
-                }
+
+            // If something else
+            else {
+                this.failPicture(E008);
+            }
+        }
+        // If retrieving photo from library
+        else if ((srcType == PHOTOLIBRARY) || (srcType == SAVEDPHOTOALBUM)) {
+            if (resultCode == Activity.RESULT_OK && intent != null) {
+                this.processResultFromGallery(destType, intent);
+            }
+            else if (resultCode == Activity.RESULT_CANCELED) {
+                this.failPicture(E009);
+            }
+            else {
+                this.failPicture(E010);
             }
         }
     }
@@ -819,7 +829,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      *
      * @param imagePath
      * @return
-     * @throws IOException 
+     * @throws IOException
      */
     private Bitmap getScaledBitmap(String imageUrl) throws IOException {
         // If no new width or height were specified return the original bitmap
@@ -831,13 +841,13 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
         BitmapFactory.decodeStream(FileHelper.getInputStreamFromUriString(imageUrl, cordova), null, options);
-        
+
         //CB-2292: WTF? Why is the width null?
         if(options.outWidth == 0 || options.outHeight == 0)
         {
             return null;
         }
-        
+
         // determine the correct aspect ratio
         int[] widthHeight = calculateAspectRatio(options.outWidth, options.outHeight);
 
@@ -1015,7 +1025,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 code = null;
             }
         } catch (Exception e) {
-            this.failPicture("Error compressing image.");
+            this.failPicture(E011);
         }
         jpeg_data = null;
     }
