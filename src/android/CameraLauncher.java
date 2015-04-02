@@ -64,7 +64,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
     private static final int DATA_URL = 0;              // Return base64 encoded string
     private static final int FILE_URI = 1;              // Return file uri (content://media/external/images/media/2 for Android)
-    private static final int NATIVE_URI = 2;                    // On Android, this is the same as FILE_URI
+    private static final int NATIVE_URI = 2;            // On Android, this is the same as FILE_URI
 
     private static final int PHOTOLIBRARY = 0;          // Choose image from picture library (same as SAVEDPHOTOALBUM for Android)
     private static final int CAMERA = 1;                // Take picture from camera
@@ -115,6 +115,9 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private MediaScannerConnection conn;    // Used to update gallery app with newly-written files
     private Uri scanMe;                     // Uri of image to be added to content store
     private Uri croppedUri;
+    private int savedRequestCode;
+    private int savedResultCode;
+    private Intent savedIntent;
 
     /**
      * Executes the request and returns PluginResult.
@@ -177,6 +180,14 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             r.setKeepCallback(true);
             callbackContext.sendPluginResult(r);
 
+            return true;
+        } else if (action.equals("checkForSavedResult")) {
+            this.imageUri = Uri.fromFile(createCaptureFile(JPEG));
+            if (savedRequestCode > 0) {
+                onActivityResult(savedRequestCode, savedResultCode, savedIntent);
+            } else {
+                callbackContext.success('checked');
+            }
             return true;
         }
         return false;
@@ -645,73 +656,79 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      */
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
 
-        // Get src and dest types from request code for a Camera Activity
-        int srcType = (requestCode / 16) - 1;
-        int destType = (requestCode % 16) - 1;
+        if (this.imageUri == null) {
+            this.savedRequestCode = requestCode;
+            this.savedResultCode = resultCode;
+            this.savedIntent = intent;
+        } else {
+            // Get src and dest types from request code for a Camera Activity
+            int srcType = (requestCode / 16) - 1;
+            int destType = (requestCode % 16) - 1;
 
-        // If Camera Crop
-        if (requestCode >= CROP_CAMERA) {
-            if (resultCode == Activity.RESULT_OK) {
+            // If Camera Crop
+            if (requestCode >= CROP_CAMERA) {
+                if (resultCode == Activity.RESULT_OK) {
 
-                // Because of the inability to pass through multiple intents, this hack will allow us
-                // to pass arcane codes back.
-                destType = requestCode - CROP_CAMERA;
-                try {
-                    processResultFromCamera(destType, intent);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    Log.e(LOG_TAG, "Unable to write to file");
+                    // Because of the inability to pass through multiple intents, this hack will allow us
+                    // to pass arcane codes back.
+                    destType = requestCode - CROP_CAMERA;
+                    try {
+                        processResultFromCamera(destType, intent);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        Log.e(LOG_TAG, "Unable to write to file");
+                    }
+
+                }// If cancelled
+                else if (resultCode == Activity.RESULT_CANCELED) {
+                    this.failPicture(E007);
                 }
 
-            }// If cancelled
-            else if (resultCode == Activity.RESULT_CANCELED) {
-                this.failPicture(E007);
-            }
-
-            // If something else
-            else {
-                this.failPicture(E008);
-            }
-        }
-        // If CAMERA
-        else if (srcType == CAMERA) {
-            // If image available
-            if (resultCode == Activity.RESULT_OK) {
-                try {
-                    if(this.allowEdit)
-                    {
-                        Uri tmpFile = Uri.fromFile(new File(getTempDirectoryPath(), ".Pic.jpg"));
-                        performCrop(tmpFile, destType, intent);
-                    }
-                    else {
-                        this.processResultFromCamera(destType, intent);
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    this.failPicture(E006);
+                // If something else
+                else {
+                    this.failPicture(E008);
                 }
             }
+            // If CAMERA
+            else if (srcType == CAMERA) {
+                // If image available
+                if (resultCode == Activity.RESULT_OK) {
+                    try {
+                        if(this.allowEdit)
+                        {
+                            Uri tmpFile = Uri.fromFile(new File(getTempDirectoryPath(), ".Pic.jpg"));
+                            performCrop(tmpFile, destType, intent);
+                        }
+                        else {
+                            this.processResultFromCamera(destType, intent);
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        this.failPicture(E006);
+                    }
+                }
 
-            // If cancelled
-            else if (resultCode == Activity.RESULT_CANCELED) {
-                this.failPicture(E007);
-            }
+                // If cancelled
+                else if (resultCode == Activity.RESULT_CANCELED) {
+                    this.failPicture(E007);
+                }
 
-            // If something else
-            else {
-                this.failPicture(E008);
+                // If something else
+                else {
+                    this.failPicture(E008);
+                }
             }
-        }
-        // If retrieving photo from library
-        else if ((srcType == PHOTOLIBRARY) || (srcType == SAVEDPHOTOALBUM)) {
-            if (resultCode == Activity.RESULT_OK && intent != null) {
-                this.processResultFromGallery(destType, intent);
-            }
-            else if (resultCode == Activity.RESULT_CANCELED) {
-                this.failPicture(E009);
-            }
-            else {
-                this.failPicture(E010);
+            // If retrieving photo from library
+            else if ((srcType == PHOTOLIBRARY) || (srcType == SAVEDPHOTOALBUM)) {
+                if (resultCode == Activity.RESULT_OK && intent != null) {
+                    this.processResultFromGallery(destType, intent);
+                }
+                else if (resultCode == Activity.RESULT_CANCELED) {
+                    this.failPicture(E009);
+                }
+                else {
+                    this.failPicture(E010);
+                }
             }
         }
     }
