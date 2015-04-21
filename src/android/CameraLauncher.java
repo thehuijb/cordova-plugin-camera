@@ -118,6 +118,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private int savedRequestCode;
     private int savedResultCode;
     private Intent savedIntent;
+    private boolean getPictureFromGallery;  // flag to indicate we are getting an image from the gallery
 
     /**
      * Executes the request and returns PluginResult.
@@ -464,7 +465,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                     !this.correctOrientation) {
                 writeUncompressedImage(uri);
 
-                this.callbackContext.success(uri.toString());
+                this.returnResult(uri.toString());
             } else {
                 bitmap = getScaledBitmap(FileHelper.stripFileProtocol(imageUri.toString()));
 
@@ -492,7 +493,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
 
                 // Send Uri back to JavaScript for viewing image
-                this.callbackContext.success(uri.toString());
+                this.returnResult(uri.toString());
 
             }
         } else {
@@ -569,14 +570,14 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         // If you ask for video or all media type you will automatically get back a file URI
         // and there will be no attempt to resize any returned data
         if (this.mediaType != PICTURE) {
-            this.callbackContext.success(uri.toString());
+            this.returnResult(uri.toString());
         }
         else {
             // This is a special case to just return the path as no scaling,
             // rotating, nor compressing needs to be done
             if (this.targetHeight == -1 && this.targetWidth == -1 &&
                     (destType == FILE_URI || destType == NATIVE_URI) && !this.correctOrientation) {
-                this.callbackContext.success(uri.toString());
+                this.returnResult(uri.toString());
             } else {
                 String uriString = uri.toString();
                 // Get the path to the image. Makes loading so much easier.
@@ -627,14 +628,14 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                             String modifiedPath = this.ouputModifiedBitmap(bitmap, uri);
                             // The modified image is cached by the app in order to get around this and not have to delete you
                             // application cache I'm adding the current system time to the end of the file url.
-                            this.callbackContext.success("file://" + modifiedPath + "?" + System.currentTimeMillis());
+                            this.returnResult("file://" + modifiedPath + "?" + System.currentTimeMillis());
                         } catch (Exception e) {
                             e.printStackTrace();
                             this.failPicture(E005);
                         }
                     }
                     else {
-                        this.callbackContext.success(uri.toString());
+                        this.returnResult(uri.toString());
                     }
                 }
                 if (bitmap != null) {
@@ -656,7 +657,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      */
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
 
-        if (this.imageUri == null) {
+        if (this.imageUri == null && this.getPictureFromGallery == false) {
             this.savedRequestCode = requestCode;
             this.savedResultCode = resultCode;
             this.savedIntent = intent;
@@ -1019,7 +1020,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 byte[] code = jpeg_data.toByteArray();
                 byte[] output = Base64.encode(code, Base64.NO_WRAP);
                 String js_out = new String(output);
-                this.callbackContext.success(js_out);
+                this.returnResult(js_out);
                 js_out = null;
                 output = null;
                 code = null;
@@ -1037,6 +1038,19 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      */
     public void failPicture(String err) {
         this.callbackContext.error(err);
+        this.imageUri = null;
+        this.getPictureFromGallery = false;
+    }
+
+    /**
+     * Send result back to JavaScript.
+     *
+     * @param result
+     */
+    public void returnResult(String result){
+        this.callbackContext.success(result);
+        this.imageUri = null;
+        this.getPictureFromGallery = false;
     }
 
     private void scanForGallery(Uri newImage) {
