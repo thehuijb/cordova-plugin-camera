@@ -681,14 +681,15 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                         Log.e(LOG_TAG, "Unable to write to file");
                     }
 
-            }// If cancelled
-            else if (resultCode == Activity.RESULT_CANCELED) {
-                this.failPicture(E007);
-            }
+                }// If cancelled
+                else if (resultCode == Activity.RESULT_CANCELED) {
+                    this.failPicture(E007);
+                }
 
-            // If something else
-            else {
-                this.failPicture(E008);
+                // If something else
+                else {
+                    this.failPicture(E008);
+                }
             }
             // If CAMERA
             else if (srcType == CAMERA) {
@@ -703,31 +704,33 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                         else {
                             this.processResultFromCamera(destType, intent);
                         }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    this.failPicture(E006);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        this.failPicture(E006);
+                    }
                 }
 
-            // If cancelled
-            else if (resultCode == Activity.RESULT_CANCELED) {
-                this.failPicture(E007);
-            }
+                // If cancelled
+                else if (resultCode == Activity.RESULT_CANCELED) {
+                    this.failPicture(E007);
+                }
 
-            // If something else
-            else {
-                this.failPicture(E008);
+                // If something else
+                else {
+                    this.failPicture(E008);
+                }
             }
-        }
-        // If retrieving photo from library
-        else if ((srcType == PHOTOLIBRARY) || (srcType == SAVEDPHOTOALBUM)) {
-            if (resultCode == Activity.RESULT_OK && intent != null) {
-                this.processResultFromGallery(destType, intent);
-            }
-            else if (resultCode == Activity.RESULT_CANCELED) {
-                this.failPicture(E009);
-            }
-            else {
-                this.failPicture(E010);
+            // If retrieving photo from library
+            else if ((srcType == PHOTOLIBRARY) || (srcType == SAVEDPHOTOALBUM)) {
+                if (resultCode == Activity.RESULT_OK && intent != null) {
+                    this.processResultFromGallery(destType, intent);
+                }
+                else if (resultCode == Activity.RESULT_CANCELED) {
+                    this.failPicture(E009);
+                }
+                else {
+                    this.failPicture(E010);
+                }
             }
         }
     }
