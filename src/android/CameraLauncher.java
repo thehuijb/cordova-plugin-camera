@@ -1050,7 +1050,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      */
     public void returnResult(String result){
         this.callbackContext.success(result);
-        this.imageUri = null;
+        //this.imageUri = null;
         this.getPictureFromGallery = false;
     }
 
