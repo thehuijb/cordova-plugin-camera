@@ -36,12 +36,16 @@ import org.apache.cordova.LOG;
 import org.apache.cordova.PluginResult;
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteException;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.CompressFormat;
 import android.graphics.BitmapFactory;
@@ -52,6 +56,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.provider.OpenableColumns;
 import android.util.Base64;
 import android.util.Log;
 import android.content.pm.PackageManager;
@@ -333,7 +338,12 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         } else if (this.mediaType == ALLMEDIA) {
                 // I wanted to make the type 'image/*, video/*' but this does not work on all versions
                 // of android so I had to go with the wildcard search.
+                final String[] ACCEPT_MIME_TYPES = {
+                    "application/pdf",
+                    "image/*"
+                };
                 intent.setType("*/*");
+                intent.putExtra(intent.EXTRA_MIME_TYPES, ACCEPT_MIME_TYPES);
                 title = GET_All;
           intent.setAction(Intent.ACTION_GET_CONTENT);
           intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -559,6 +569,122 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         return modifiedPath;
     }
 
+    private JSONObject generateFileInfo( Uri uri, String mimeType) throws JSONException {
+        ContentResolver contentResolver = cordova.getActivity().getContentResolver();
+        String scheme = uri.getScheme();
+        String fileName = null;
+        long length = 0;
+        // Support all Uri with "content" scheme
+        // This will allow more 3rd party applications to share files via
+        // bluetooth
+        if ("content".equals(scheme)) {
+            Cursor metadataCursor;
+            try {
+                metadataCursor = contentResolver.query(uri, new String[] {
+                        OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE
+                }, null, null, null);
+            } catch (SQLiteException e) {
+                // some content providers don't support the DISPLAY_NAME or SIZE columns
+                metadataCursor = null;
+            }
+            if (metadataCursor != null) {
+                try {
+                    if (metadataCursor.moveToFirst()) {
+                        fileName = metadataCursor.getString(0);
+                        length = metadataCursor.getInt(1);
+                        Log.d(LOG_TAG, "fileName = " + fileName + " length = " + length);
+                    }
+                } finally {
+                    metadataCursor.close();
+                }
+            }
+            if (fileName == null) {
+                // use last segment of URI if DISPLAY_NAME query fails
+                fileName = uri.getLastPathSegment();
+            }
+        } else if ("file".equals(scheme)) {
+            fileName = uri.getLastPathSegment();
+            File f = new File(uri.getPath());
+            length = f.length();
+        } else {
+            // currently don't accept other scheme
+            return null;
+        }
+        FileInputStream is = null;
+        if (scheme.equals("content")) {
+            try {
+                // We've found that content providers don't always have the
+                // right size in _OpenableColumns.SIZE
+                // As a second source of getting the correct file length,
+                // get a file descriptor and get the stat length
+                AssetFileDescriptor fd = contentResolver.openAssetFileDescriptor(uri, "r");
+                long statLength = fd.getLength();
+                if (length != statLength && statLength > 0) {
+                    Log.e(LOG_TAG, "Content provider length is wrong (" + Long.toString(length) +
+                            "), using stat length (" + Long.toString(statLength) + ")");
+                    length = statLength;
+                }
+                try {
+                    // This creates an auto-closing input-stream, so
+                    // the file descriptor will be closed whenever the InputStream
+                    // is closed.
+                    is = fd.createInputStream();
+                } catch (IOException e) {
+                    try {
+                        fd.close();
+                    } catch (IOException e2) {
+                        // Ignore
+                    }
+                }
+            } catch (FileNotFoundException e) {
+                // Ignore
+            }
+        }
+        if (is == null) {
+            try {
+                is = (FileInputStream) contentResolver.openInputStream(uri);
+            } catch (FileNotFoundException e) {
+                return null;
+            }
+        }
+        // If we can not get file length from content provider, we can try to
+        // get the length via the opened stream.
+        if (length == 0) {
+            try {
+                length = is.available();
+                Log.d(LOG_TAG, "file length is " + length);
+            } catch (IOException e) {
+                Log.e(LOG_TAG, "Read stream exception: ", e);
+                return null;
+            }
+        }
+
+        Uri returnUri = uri;
+        try {
+            InputStream initialStream = FileHelper.getInputStreamFromUriString(uri.toString(), cordova);
+            if (mimeType.length() > "application/".length() && mimeType.startsWith("application")) {
+                File targetFile = new File(getTempDirectoryPath(), System.currentTimeMillis() + "." + mimeType.substring("application".length() + 1));
+                returnUri = Uri.fromFile(targetFile);
+                OutputStream outStream = new FileOutputStream(targetFile);
+
+                byte[] buffer = new byte[8 * 1024];
+                int bytesRead;
+                while ((bytesRead = initialStream.read(buffer)) != -1) {
+                    outStream.write(buffer, 0, bytesRead);
+                }
+                initialStream.close();
+                outStream.close();
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return new JSONObject("{ \"uri\": \"" + returnUri.toString() + "\", \"name\" : \"" + fileName + "\", \"size\" : " + length + "}" );
+    }
+
+
     /**
      * Applies all needed transformation to the image received from the gallery.
      *
@@ -577,9 +703,19 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         }
         int rotate = 0;
 
+        String mimeType = FileHelper.getMimeType(uri.toString(), cordova);
         // If you ask for video or all media type you will automatically get back a file URI
         // and there will be no attempt to resize any returned data
-        if (this.mediaType != PICTURE) {
+        if (this.mediaType != PICTURE && !("image/jpeg".equalsIgnoreCase(mimeType) || "image/png".equalsIgnoreCase(mimeType))) {
+            JSONObject json = null;
+            try {
+                json = generateFileInfo(uri, mimeType);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            if (json != null) {
+                this.callbackContext.success(json);
+            }
             this.returnResult(uri.toString());
         }
         else {
@@ -591,7 +727,6 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
             } else {
                 String uriString = uri.toString();
                 // Get the path to the image. Makes loading so much easier.
-                String mimeType = FileHelper.getMimeType(uriString, this.cordova);
                 // If we don't have a valid image so quit.
                 if (!("image/jpeg".equalsIgnoreCase(mimeType) || "image/png".equalsIgnoreCase(mimeType))) {
                     Log.d(LOG_TAG, "I either have a null image path or bitmap");
