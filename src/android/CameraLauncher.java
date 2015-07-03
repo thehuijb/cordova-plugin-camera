@@ -706,7 +706,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         String mimeType = FileHelper.getMimeType(uri.toString(), cordova);
         // If you ask for video or all media type you will automatically get back a file URI
         // and there will be no attempt to resize any returned data
-        if (this.mediaType != PICTURE && !("image/jpeg".equalsIgnoreCase(mimeType) || "image/png".equalsIgnoreCase(mimeType))) {
+        // expects pdf format and nothing else
+        if (this.mediaType != PICTURE && "application/pdf".equalsIgnoreCase(mimeType)) {
             JSONObject json = null;
             try {
                 json = generateFileInfo(uri, mimeType);
