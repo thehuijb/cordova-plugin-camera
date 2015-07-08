@@ -18,31 +18,12 @@
 */
 package org.apache.cordova.camera;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.URI;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-
-import org.apache.cordova.CallbackContext;
-import org.apache.cordova.CordovaPlugin;
-import org.apache.cordova.LOG;
-import org.apache.cordova.PluginResult;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteException;
@@ -53,13 +34,30 @@ import android.graphics.Matrix;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
 import android.net.Uri;
-import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.util.Base64;
 import android.util.Log;
-import android.content.pm.PackageManager;
+
+import org.apache.cordova.CallbackContext;
+import org.apache.cordova.CordovaPlugin;
+import org.apache.cordova.LOG;
+import org.apache.cordova.PluginResult;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 /**
  * This class launches the camera view, allows the user to take a picture, closes the camera view,
  * and returns the captured image.  When the camera view is closed, the screen displayed before
@@ -102,6 +100,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     private static final String E009 = "E009: Selection cancelled.";
     private static final String E010 = "E010: Selection did not complete!";
     private static final String E011 = "E011: Error compressing image.";
+    private static final String E012 = "E012: File to big.";
 
     private int mQuality;                   // Compression quality hint (0-100: 0=low quality & high compression, 100=compress of max quality)
     private int targetWidth;                // desired width of the image
@@ -242,8 +241,8 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
      * or to display URI in an img tag
      *      img.src=result;
      *
-     * @param quality           Compression quality hint (0-100: 0=low quality & high compression, 100=compress of max quality)
      * @param returnType        Set the type of image to return.
+     * @param encodingType
      */
     public void takePicture(int returnType, int encodingType) {
         // Save the number of images currently on disk for later
@@ -297,13 +296,10 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     /**
      * Get image from photo library.
      *
-     * @param quality           Compression quality hint (0-100: 0=low quality & high compression, 100=compress of max quality)
      * @param srcType           The album to get image from.
      * @param returnType        Set the type of image to return.
      * @param encodingType
      */
-    // TODO: Images selected from SDCARD don't display correctly, but from CAMERA ALBUM do!
-    // TODO: Images from kitkat filechooser not going into crop function
     public void getImage(int srcType, int returnType, int encodingType) {
         Intent intent = new Intent();
         String title = GET_PICTURE;
@@ -680,8 +676,13 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         } catch (IOException e) {
             e.printStackTrace();
         }
+        
+        JSONObject fileInfo = new JSONObject();
+        fileInfo.put("uri", returnUri.toString());
+        fileInfo.put("name", fileName);
+        fileInfo.put("size", length); 
 
-        return new JSONObject("{ \"uri\": \"" + returnUri.toString() + "\", \"name\" : \"" + fileName + "\", \"size\" : " + length + "}" );
+        return fileInfo;
     }
 
 
@@ -715,7 +716,12 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 e.printStackTrace();
             }
             if (json != null) {
-                this.callbackContext.success(json);
+                if (json.optInt("size") < (5 * 1024 * 1024)) {
+                    this.callbackContext.success(json);
+                } else {
+                    this.failPicture(E012);
+                }
+                return;
             }
             this.returnResult(uri.toString());
         }
@@ -994,7 +1000,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
     /**
      * Return a scaled bitmap based on the target width and height
      *
-     * @param imagePath
+     * @param imageUrl
      * @return
      * @throws IOException
      */
