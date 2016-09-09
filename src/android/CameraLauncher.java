@@ -532,7 +532,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
             // Double-check the bitmap.
             if (bitmap == null) {
-                Log.d(LOG_TAG, "I either have a null image path or bitmap");
+                LOG.d(LOG_TAG, "I either have a null image path or bitmap");
                 this.failPicture(E001);
                 return;
             }
@@ -572,7 +572,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
 
                 // Double-check the bitmap.
                 if (bitmap == null) {
-                    Log.d(LOG_TAG, "I either have a null image path or bitmap");
+                    LOG.d(LOG_TAG, "I either have a null image path or bitmap");
                     this.failPicture(E002);
                     return;
                 }
@@ -689,7 +689,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                     if (metadataCursor.moveToFirst()) {
                         fileName = metadataCursor.getString(0);
                         length = metadataCursor.getInt(1);
-                        Log.d(LOG_TAG, "fileName = " + fileName + " length = " + length);
+                        LOG.d(LOG_TAG, "fileName = " + fileName + " length = " + length);
                     }
                 } finally {
                     metadataCursor.close();
@@ -717,7 +717,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 AssetFileDescriptor fd = contentResolver.openAssetFileDescriptor(uri, "r");
                 long statLength = fd.getLength();
                 if (length != statLength && statLength > 0) {
-                    Log.e(LOG_TAG, "Content provider length is wrong (" + Long.toString(length) +
+                    LOG.e(LOG_TAG, "Content provider length is wrong (" + Long.toString(length) +
                             "), using stat length (" + Long.toString(statLength) + ")");
                     length = statLength;
                 }
@@ -749,9 +749,9 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
         if (length == 0) {
             try {
                 length = is.available();
-                Log.d(LOG_TAG, "file length is " + length);
+                LOG.d(LOG_TAG, "file length is " + length);
             } catch (IOException e) {
-                Log.e(LOG_TAG, "Read stream exception: ", e);
+                LOG.e(LOG_TAG, "Read stream exception: ", e);
                 return null;
             }
         }
@@ -840,7 +840,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 // Get the path to the image. Makes loading so much easier.
                 // If we don't have a valid image so quit.
                 if (!("image/jpeg".equalsIgnoreCase(mimeType) || "image/png".equalsIgnoreCase(mimeType))) {
-                    Log.d(LOG_TAG, "I either have a null image path or bitmap");
+                    LOG.d(LOG_TAG, "I either have a null image path or bitmap");
                     this.failPicture(E004);
                     return;
                 }
@@ -851,7 +851,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                     e.printStackTrace();
                 }
                 if (bitmap == null) {
-                    Log.d(LOG_TAG, "I either have a null image path or bitmap");
+                    LOG.d(LOG_TAG, "I either have a null image path or bitmap");
                     this.failPicture(E001);
                     return;
                 }
