@@ -853,7 +853,7 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                 }
                 return;
             }
-            this.returnResult(uri.toString());
+            this.returnResult(fileLocation);
         }
         else {
             // This is a special case to just return the path as no scaling,
@@ -905,11 +905,11 @@ public class CameraLauncher extends CordovaPlugin implements MediaScannerConnect
                             e.printStackTrace();
                             this.failPicture(E005);
                         }
-                    // }
-                    // else {
-                    //     this.returnResult(uri.toString());
-                    } else {
-                        this.callbackContext.success(fileLocation);
+                    }
+                    else {
+                        this.returnResult(fileLocation);
+                    // } else {
+                    //     this.callbackContext.success(fileLocation);
                     }
                 }
                 if (bitmap != null) {
